@@ -3,12 +3,14 @@ import spacy
 from tqdm import tqdm
 import time
 
+import numpy as np
+
 # Load Spacy's NLP model to use for in vector embeddings
 # spacy_nlp = spacy.load('en_core_web_lg')
 
 CHUNKSIZE = 10000
 
-def generate_save_word_embeddings(dataset_read_path, dataset_save_path):
+def generate_save_word_embeddings(dataset_read_path):
     '''
     Read the Yelp Review dataset and vectorize them using SpaCy's GloVe model.
     Save the model in .parquet format to a desired location.
@@ -22,6 +24,8 @@ def generate_save_word_embeddings(dataset_read_path, dataset_save_path):
 
     # Read the dataset 10 000 entries at a time and generae vectors for them
     df_iter = pd.read_csv(dataset_read_path, chunksize=CHUNKSIZE)
+    
+    spacy_nlp = spacy.load('en_core_web_lg')
 
     for i, df in enumerate(df_iter):
 
@@ -64,4 +68,10 @@ def generate_save_word_embeddings(dataset_read_path, dataset_save_path):
 
         # Save the data in .parquet format, an efficient file read/write format.
         df['text_vectorized'] = tokenized_vectors
-        df.to_parquet(dataset_save_path, index=False)
+        df['text_vectorized'] = df['text_vectorized'].apply(lambda v: np.vstack(v))
+        df['target'] = df['sentiment'].map({'negative': 0, 'neutral': 1, 'positive': 2})
+        
+        print (f'\tWriting chunk {i}...')
+
+        np.save(f'./data/features/X_{i}.npy', df['text_vectorized'].values)
+        np.save(f'./data/labels/y_{i}.npy', df['target'].values)
