@@ -24,6 +24,15 @@ def pad_sequence(sample, seq_len):
 
     return padded_sample
 
+def create_tensor_dataset(X, y):
+
+    X_fixed = np.array([np.array(x, dtype=np.float32) for x in X.values], dtype=np.float32)
+
+    y_tensor = torch.tensor(y.values, dtype=torch.long)
+    X_tensor = torch.tensor(X_fixed, dtype=torch.float32)
+
+    return TensorDataset(X_tensor, y_tensor)
+
 def main():
     # Hyperparameters
     max_seq_len = 50
@@ -33,8 +42,8 @@ def main():
 
     start = time.time()
 
-    df['X'] = np.load(f'./data/features/X_1.npy', allow_pickle=True)
-    df['y'] = np.load(f'./data/labels/y_1.npy')
+    df['X'] = np.load(f'./data/features/X_1.npy', allow_pickle=True)[:100]
+    df['y'] = np.load(f'./data/labels/y_1.npy')[:100]
 
 
     df['X'] = df['X'].apply(lambda x: pad_sequence(x, max_seq_len))
@@ -51,15 +60,20 @@ def main():
                                                     stratify=y_temp, 
                                                     random_state=42)
     
+    #print (X_train.shape)
+    #print (X_val.shape)
+    #print (X_test.shape)
+    print (X_train.values.dtype)
+
     # Convert to dataset
-    # train_dataset = TensorDataset(torch.tensor(X_train.values, dtype=torch.float32), torch.tensor(y_train, dtype=torch.long))
-    # val_dataset = TensorDataset(torch.tensor(X_val.values, dtype=torch.float32), torch.tensor(y_val, dtype=torch.long))
-    # test_dataset = TensorDataset(torch.tensor(X_test.values, dtype=torch.float32), torch.tensor(y_test, dtype=torch.long))
-    
-    # # Convert to DataLoader
-    # train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    # val_loader = DataLoader(val_dataset, batch_size=batch_size)
-    # test_loader = DataLoader(test_dataset, batch_size=batch_size)
+    train_dataset = create_tensor_dataset(X_train, y_train)
+    val_dataset = create_tensor_dataset(X_val, y_val)
+    test_dataset = create_tensor_dataset(X_test, y_test)
+   
+     # Convert to DataLoader
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size)
 
     end = time.time()
 
