@@ -38,14 +38,17 @@ def main():
     max_seq_len = 50
     batch_size = 32
 
+    read_size = 1000
+
     df = pd.DataFrame()
 
     start = time.time()
 
-    df['X'] = np.load(f'./data/features/X_1.npy', allow_pickle=True)[:100]
-    df['y'] = np.load(f'./data/labels/y_1.npy')[:100]
+    df['X'] = np.load(f'./data/features/X_1.npy', allow_pickle=True)[:read_size]
+    df['y'] = np.load(f'./data/labels/y_1.npy')[:read_size]
 
 
+    df['lengths'] = df['X'].apply(lambda x: x.shape[0] if x.shape[0] < max_seq_len else max_seq_len)
     df['X'] = df['X'].apply(lambda x: pad_sequence(x, max_seq_len))
 
     X_train, X_temp, y_train, y_temp = train_test_split(df['X'], 
@@ -60,11 +63,6 @@ def main():
                                                     stratify=y_temp, 
                                                     random_state=42)
     
-    #print (X_train.shape)
-    #print (X_val.shape)
-    #print (X_test.shape)
-    print (X_train.values.dtype)
-
     # Convert to dataset
     train_dataset = create_tensor_dataset(X_train, y_train)
     val_dataset = create_tensor_dataset(X_val, y_val)
@@ -78,6 +76,8 @@ def main():
     end = time.time()
 
     print (f'Loading data chunk 1: {end-start:.2f}s')
+
+    print (df['lengths'].value_counts())
 
 
 
