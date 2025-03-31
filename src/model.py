@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 import numpy as np
 
 class SentimentModel(nn.Module):
@@ -46,6 +46,61 @@ class SentimentModel(nn.Module):
         # Pass through output
         prediction = self.fc(hidden)
         return self.softmax(prediction)
+
+def _train_subroutine(model, train_loader, optimizer, loss_fn, history):
+    for b, batch in enumerate(train_loader):
+
+        optimizer.zero_grad()
+
+        X = batch['feature']
+        y = batch['label']
+        lengths = batch['length']
+
+        print (f'\r\t\tbatch {b}:', end='', flush=True)
+
+        # Forward pass
+        predictions = model(X, lengths)
+
+        # Compute loss
+        loss = loss_fn(predictions, y)
+
+        # Backward pass and optimize
+        loss.backward()
+        optimizer.step()
+
+        # Record predictions and loss for batch
+        history['loss'] += loss.item()
+        history['preds'].extend((predictions > 0.5).numpy())
+        history['labels'].extend(y.numpy())
+
+
+      
+
+
+
+    # for batch in tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs} - Training'):
+    # vectors = batch['review_vectors'].to(device)
+    # labels = batch['label'].to(device)
+    # lengths = batch['length'].to(device)
+    
+    # # Zero gradients
+    # optimizer.zero_grad()
+    
+    # # Forward pass
+    # predictions = model(vectors, lengths).squeeze(1)
+    
+    # # Compute loss
+    # loss = criterion(predictions, labels)
+    
+    # # Backward pass and optimize
+    # loss.backward()
+    # optimizer.step()
+    
+    # # Track loss and predictions
+    # epoch_loss += loss.item()
+    # epoch_preds.extend((predictions > 0.5).cpu().numpy())
+    # epoch_labels.extend(labels.cpu().numpy())
+
 
 
 

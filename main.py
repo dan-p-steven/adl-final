@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 
 import src.preprocess as preprocess
-from src.model import SentimentModel
+from src.model import SentimentModel, _train_subroutine
+from src.dataset import YelpDataset
 
 import torch
 import torch.nn as nn
@@ -18,33 +19,10 @@ import glob
 import random
 
 EMBED_SIZE = 300
-READ_SIZE = 100
+READ_SIZE = 10000
 
 FEATURE_PATH = './data/features/*.npy'
 LABEL_PATH = './data/labels/*.npy'
-
-def pad_sequence(sample, max_seq_len):
-
-    sample_len = sample.shape[0]
-
-    if sample_len < max_seq_len:
-        
-        padded_sample = np.zeros((max_seq_len, sample.shape[1]))
-        padded_sample[:sample_len] = sample
-
-    else:
-        padded_sample = sample[:max_seq_len]
-
-    return padded_sample
-
-def create_tensor_dataset(X, y):
-
-    X_fixed = np.array([np.array(x, dtype=np.float32) for x in X.values], dtype=np.float32)
-
-    y_tensor = torch.tensor(y.values, dtype=torch.long)
-    X_tensor = torch.tensor(X_fixed, dtype=torch.float32)
-
-    return TensorDataset(X_tensor, y_tensor)
 
 def main():
 
@@ -68,8 +46,8 @@ def main():
         num_classes=3
     )
 
-    loss = nn.CrossEntropyLoss()
-    opt = optim.Adam(model.parameters(), lr=learning_rate)
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
  
 
@@ -85,6 +63,14 @@ def main():
         random.shuffle(feature_files)
         random.shuffle(label_files)
 
+        model.train()
+
+        epoch_history = {
+            'loss': 0,
+            'preds': [],
+            'labels': [],
+        }
+
         for i in range(0, len(feature_files)):
             
             # Start timer
@@ -94,14 +80,6 @@ def main():
             df['X'] = np.load(feature_files[i], allow_pickle=True)[:READ_SIZE]
             df['y'] = np.load(label_files[i])[:READ_SIZE]
 
-            # Preprocessing
-            print (f'\tPreprocessing features')
-            # Extract sequence lengths of all samples
-            df['lengths'] = df['X'].apply(lambda x: x.shape[0] if x.shape[0] < max_seq_len else max_seq_len)
-            lengths = torch.tensor(df['lengths'].values, dtype=torch.long)
-
-            # Pad samples up to max_seq_len
-            df['X'] = df['X'].apply(lambda x: pad_sequence(x, max_seq_len))
 
             # Splitting data
             X_train, X_temp, y_train, y_temp = train_test_split(
@@ -110,12 +88,11 @@ def main():
             X_val, X_test, y_val, y_test = train_test_split(
                 X_temp, y_temp, test_size=0.66, stratify=None, random_state=42)
             
-            print (f'\tCreating DataLoaders ...')
 
-            # Convert to dataset
-            train_dataset = create_tensor_dataset(X_train, y_train)
-            val_dataset = create_tensor_dataset(X_val, y_val)
-            test_dataset = create_tensor_dataset(X_test, y_test)
+            # Convert to dataset (features are padded here)
+            train_dataset = YelpDataset(X_train, y_train, max_seq_len)
+            val_dataset = YelpDataset(X_val, y_val, max_seq_len)
+            test_dataset = YelpDataset(X_test, y_test, max_seq_len)
         
             # Convert to DataLoader
             train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -124,7 +101,15 @@ def main():
 
             # Record time taken to load
             end = time.time()
-            print (f'\tDone: {end-start:.2f}s')
+            print (f'\t\tDone: {end-start:.2f}s')
+
+            print (f'\tTraining ...')
+            start = time.time()
+
+            _train_subroutine(
+                model, train_loader=train_loader, optimizer=optimizer, loss_fn=loss_fn, history=epoch_history)
+            
+            print (f'\n\tloss: {epoch_history["loss"]:.2f}')
 
 
 if __name__ == "__main__":
