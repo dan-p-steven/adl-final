@@ -38,6 +38,12 @@ def main():
     max_seq_len = 50
     batch_size = 32
 
+    lstm_hidden_dim = 32
+    lstm_num_layers = 1
+    lstm_bidirectional = False
+    lstm_dropout_rate = 0.5
+
+
     read_size = 1000
 
     df = pd.DataFrame()
@@ -48,9 +54,18 @@ def main():
     df['y'] = np.load(f'./data/labels/y_1.npy')[:read_size]
 
 
+    # Preprocessing
+    embedding_size = df['X'].iloc[0].shape[1]
+    print (embedding_size)
+
+    # Extract sequence lengths of all samples
     df['lengths'] = df['X'].apply(lambda x: x.shape[0] if x.shape[0] < max_seq_len else max_seq_len)
+    lengths = torch.tensor(df['lengths'].values, dtype=torch.long)
+
+    # Pad samples up to max_seq_len
     df['X'] = df['X'].apply(lambda x: pad_sequence(x, max_seq_len))
 
+    # Splitting data
     X_train, X_temp, y_train, y_temp = train_test_split(df['X'], 
                                                         df['y'], 
                                                         test_size=0.3, 
@@ -73,11 +88,10 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=batch_size)
     test_loader = DataLoader(test_dataset, batch_size=batch_size)
 
+    
     end = time.time()
-
     print (f'Loading data chunk 1: {end-start:.2f}s')
 
-    print (df['lengths'].value_counts())
 
 
 
