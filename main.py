@@ -10,17 +10,17 @@ import time
 
 
 
-def pad_sequence(sample, seq_len):
+def pad_sequence(sample, max_seq_len):
 
     sample_len = sample.shape[0]
 
-    if sample_len < seq_len:
+    if sample_len < max_seq_len:
         
-        padded_sample = np.zeros((seq_len, sample.shape[1]))
+        padded_sample = np.zeros((max_seq_len, sample.shape[1]))
         padded_sample[:sample_len] = sample
 
     else:
-        padded_sample = sample[:seq_len]
+        padded_sample = sample[:max_seq_len]
 
     return padded_sample
 
