@@ -1,14 +1,20 @@
 import pandas as pd
 import numpy as np
+
 import src.preprocess as preprocess
+from src.model import SentimentModel
+
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
+import torch.optim as optim
+
 
 from sklearn.model_selection import train_test_split
 
 import time
 
-
+EMBED_SIZE = 300
 
 def pad_sequence(sample, max_seq_len):
 
@@ -35,14 +41,28 @@ def create_tensor_dataset(X, y):
 
 def main():
     # Hyperparameters
+
     max_seq_len = 50
     batch_size = 32
+    num_epochs = 1
+    learning_rate = 0.001
 
     lstm_hidden_dim = 32
     lstm_num_layers = 1
     lstm_bidirectional = False
     lstm_dropout_rate = 0.5
 
+    model = SentimentModel(
+        input_dim=EMBED_SIZE,
+        hidden_dim=lstm_hidden_dim,
+        num_layers=lstm_num_layers,
+        bidirectional=lstm_bidirectional,
+        dropout_rate=lstm_dropout_rate,
+        num_classes=3
+    )
+
+    loss = nn.CrossEntropyLoss()
+    opt = optim.Adam(model.parameters(), lr=learning_rate)
 
     read_size = 1000
 
@@ -53,10 +73,7 @@ def main():
     df['X'] = np.load(f'./data/features/X_1.npy', allow_pickle=True)[:read_size]
     df['y'] = np.load(f'./data/labels/y_1.npy')[:read_size]
 
-
     # Preprocessing
-    embedding_size = df['X'].iloc[0].shape[1]
-    print (embedding_size)
 
     # Extract sequence lengths of all samples
     df['lengths'] = df['X'].apply(lambda x: x.shape[0] if x.shape[0] < max_seq_len else max_seq_len)
