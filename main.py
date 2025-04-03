@@ -113,4 +113,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    preprocess.generate_save_word_embeddings('./data/yelp_review_100k.csv')
