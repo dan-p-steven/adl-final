@@ -25,6 +25,9 @@ READ_SIZE = 70000
 FEATURES_PATH = './data/features.npy'
 LABELS_PATH = './data/labels.npy'
 
+def cuda_check():
+    print(torch.version.cuda)  # This will print the version of CUDA PyTorch is using
+
 def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -32,13 +35,13 @@ def main():
 
 
     # Hyperparameters
-    max_seq_len = 50
+    max_seq_len = 100
     batch_size = 32
     num_epochs = 50
-    learning_rate = 0.001
+    learning_rate = 0.01
 
     lstm_hidden_dim = 32
-    lstm_num_layers = 1
+    lstm_num_layers = 2
     lstm_bidirectional = False
     lstm_dropout_rate = 0.5
 
