@@ -20,7 +20,7 @@ import random
 
 
 EMBED_SIZE = 300
-READ_SIZE = 70000
+READ_SIZE = 50000
 
 FEATURES_PATH = './data/features.npy'
 LABELS_PATH = './data/labels.npy'
@@ -38,20 +38,18 @@ def main():
     max_seq_len = 100
     batch_size = 32
     num_epochs = 50
-    learning_rate = 0.01
+    learning_rate = 0.001
 
-    lstm_hidden_dim = 32
-    lstm_num_layers = 2
-    lstm_bidirectional = False
-    lstm_dropout_rate = 0.5
+    # lstm_hidden_dim = 32
+    # lstm_num_layers = 1
+    # lstm_bidirectional = False
+    # lstm_dropout_rate = 0.5
 
     model = SentimentModel(
-        input_dim=EMBED_SIZE,
-        hidden_dim=lstm_hidden_dim,
-        num_layers=lstm_num_layers,
-        bidirectional=lstm_bidirectional,
-        dropout_rate=lstm_dropout_rate,
-        num_classes=3,
+        input_size=300,
+        hidden_size=32,
+        num_layers=2,
+        num_classes=3
     )
 
     model = model.to(device)

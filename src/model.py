@@ -8,47 +8,26 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score
 
 class SentimentModel(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers, bidirectional, dropout_rate, num_classes):
+    def __init__(self, input_size, hidden_size, num_layers, num_classes):
         
         super(SentimentModel, self).__init__()
-        
-        self.lstm = nn.LSTM(input_dim, 
-                           hidden_dim, 
-                           num_layers=num_layers, 
-                           bidirectional=bidirectional, 
-                           batch_first=True, 
-                           dropout=dropout_rate if num_layers > 1 else 0)
-        
-        self.dropout = nn.Dropout(dropout_rate)
 
-        self.fc = nn.Linear(hidden_dim * 2 if bidirectional else hidden_dim, num_classes)
+        self.num_layers = num_layers
+        self.hidden_size = hidden_size
+        
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)  
+        self.fc = nn.Linear(hidden_size, num_classes)
         self.softmax = nn.Softmax(dim=1)
     
-    def forward(self, embedded, text_lengths):
+    def forward(self, x):
 
-        # Pack sequence for LSTM
-        embedded_packed = nn.utils.rnn.pack_padded_sequence(
-            embedded, text_lengths.cpu(), batch_first=True, enforce_sorted=False
-        )
+        batch_size = x.size(0)
 
-        # Pass through lstm layer(s)
-        out, (hidden, cell) = self.lstm(embedded_packed)
+        out, (h_n, c_n) = self.lstm(x)
 
-        # Re-pad sequence
-        out, _ = nn.utils.rnn.pad_packed_sequence(out, batch_first=True)
-
-        # If bidirectional, concatenate the final forward and backward hidden states
-        if self.lstm.bidirectional:
-            hidden = torch.cat((hidden[-2,:,:], hidden[-1,:,:]), dim=1)
-        else:
-            hidden = hidden[-1,:,:]
-
-        # Apply post-lstm dropout
-        hidden = self.dropout(hidden)
-
-        # Pass through output
-        prediction = self.fc(hidden)
-        return self.softmax(prediction)
+        out = h_n[-1]
+        out = self.fc(out)
+        return out
 
 
 
@@ -63,10 +42,9 @@ def evaluate_model(model, data_loader, loss_fn, device):
         for batch in tqdm(data_loader, desc='Evaluating'):
             X = batch['feature'].to(device)
             y = batch['label'].to(device)
-            lengths = batch['length']
             
             # Forward pass
-            predictions = model(X, lengths)
+            predictions = model(X)
             
             # Compute loss
             loss = loss_fn(predictions, y)
@@ -106,10 +84,9 @@ def train_model(model, train_loader, val_loader, optimizer, loss_fn, num_epochs,
 
             X = batch['feature'].to(device)
             y = batch['label'].to(device)
-            lengths = batch['length']
 
             # Forward pass
-            predictions = model(X, lengths)
+            predictions = model(X)
 
             # Compute loss
             loss = loss_fn(predictions, y)

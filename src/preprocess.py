@@ -73,5 +73,5 @@ def generate_save_word_embeddings(dataset_read_path):
         
         print (f'\tWriting chunk {i}...')
 
-        np.save(f'./data/features/X_{i}.npy', df['text_vectorized'].values)
-        np.save(f'./data/labels/y_{i}.npy', df['target'].values)
+        np.save(f'./data/X_{i}.npy', df['text_vectorized'].values)
+        np.save(f'./data/y_{i}.npy', df['target'].values)
