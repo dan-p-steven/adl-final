@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 import src.preprocess as preprocess
-from src.model import SentimentModel, _train_subroutine
+from src.model import SentimentModel, train_model, evaluate_model
 from src.dataset import YelpDataset
 
 import torch
@@ -18,6 +18,7 @@ import glob
 
 import random
 
+
 EMBED_SIZE = 300
 READ_SIZE = 70000
 
@@ -26,10 +27,14 @@ LABELS_PATH = './data/labels.npy'
 
 def main():
 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
+
+
     # Hyperparameters
     max_seq_len = 50
     batch_size = 32
-    num_epochs = 5
+    num_epochs = 50
     learning_rate = 0.001
 
     lstm_hidden_dim = 32
@@ -43,8 +48,10 @@ def main():
         num_layers=lstm_num_layers,
         bidirectional=lstm_bidirectional,
         dropout_rate=lstm_dropout_rate,
-        num_classes=3
+        num_classes=3,
     )
+
+    model = model.to(device)
 
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
@@ -84,7 +91,14 @@ def main():
     end = time.time()
     print (f'Done: {end-start:.2f}s')
 
-    _train_subroutine(model, train_loader=train_loader, optimizer=optimizer, loss_fn=loss_fn, num_epochs=num_epochs)
+    train_model(
+        model, 
+        train_loader=train_loader, 
+        val_loader=val_loader, 
+        optimizer=optimizer, 
+        loss_fn=loss_fn, 
+        num_epochs=num_epochs,
+        device=device)
 
 
 if __name__ == "__main__":
