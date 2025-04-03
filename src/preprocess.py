@@ -8,7 +8,7 @@ import numpy as np
 # Load Spacy's NLP model to use for in vector embeddings
 # spacy_nlp = spacy.load('en_core_web_lg')
 
-CHUNKSIZE = 50000
+CHUNKSIZE = 70000
 
 def generate_save_word_embeddings(dataset_read_path):
     '''

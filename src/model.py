@@ -4,6 +4,9 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import numpy as np
 
+from tqdm import tqdm
+from sklearn.metrics import accuracy_score
+
 class SentimentModel(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers, bidirectional, dropout_rate, num_classes):
         
@@ -47,31 +50,57 @@ class SentimentModel(nn.Module):
         prediction = self.fc(hidden)
         return self.softmax(prediction)
 
-def _train_subroutine(model, train_loader, optimizer, loss_fn, history):
-    for b, batch in enumerate(train_loader):
+def _train_subroutine(model, train_loader, optimizer, loss_fn, num_epochs):
 
-        optimizer.zero_grad()
+    #best_val_loss = float('inf')
+    train_losses = []
+    val_losses = []
+    train_accuracies = []
+    val_accuracies = []
 
-        X = batch['feature']
-        y = batch['label']
-        lengths = batch['length']
+    for epoch in range(num_epochs):
 
-        print (f'\r\t\tbatch {b}:', end='', flush=True)
+        # Training phase
+        model.train()
 
-        # Forward pass
-        predictions = model(X, lengths)
+        epoch_loss = 0
+        epoch_preds = []
+        epoch_labels = []
 
-        # Compute loss
-        loss = loss_fn(predictions, y)
+        for batch in tqdm(train_loader, desc=f'Epoch [{epoch+1}/{num_epochs}]', total=len(train_loader)):
 
-        # Backward pass and optimize
-        loss.backward()
-        optimizer.step()
+            optimizer.zero_grad()
 
-        # Record predictions and loss for batch
-        history['loss'] += loss.item()
-        history['preds'].extend((predictions > 0.5).numpy())
-        history['labels'].extend(y.numpy())
+            X = batch['feature']
+            y = batch['label']
+            lengths = batch['length']
+
+            # Forward pass
+            predictions = model(X, lengths)
+
+            # Compute loss
+            loss = loss_fn(predictions, y)
+
+            # Backward pass and optimize
+            loss.backward()
+            optimizer.step()
+
+            # Record predictions and loss for batch
+            # Track loss and predictions
+            epoch_loss += loss.item()
+            epoch_preds.extend((predictions > 0.5).numpy())
+            epoch_labels.extend(y.numpy())
+                # Calculate training metrics
+        train_loss = epoch_loss / len(train_loader)
+
+        train_acc = accuracy_score(epoch_labels, epoch_preds)
+        train_losses.append(train_loss)
+        train_accuracies.append(train_acc)
+
+        print(f'\tTrain Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}')
+
+
+
 
 
       

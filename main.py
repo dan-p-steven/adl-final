@@ -19,17 +19,17 @@ import glob
 import random
 
 EMBED_SIZE = 300
-READ_SIZE = 10000
+READ_SIZE = 70000
 
-FEATURE_PATH = './data/features/*.npy'
-LABEL_PATH = './data/labels/*.npy'
+FEATURES_PATH = './data/features.npy'
+LABELS_PATH = './data/labels.npy'
 
 def main():
 
     # Hyperparameters
     max_seq_len = 50
     batch_size = 32
-    num_epochs = 1
+    num_epochs = 5
     learning_rate = 0.001
 
     lstm_hidden_dim = 32
@@ -49,68 +49,43 @@ def main():
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
- 
 
     df = pd.DataFrame()
 
+    # Start timer
+    print (f'Reading features and targets ...')
+    start = time.time()
 
-    feature_files = glob.glob(FEATURE_PATH)
-    label_files = glob.glob(LABEL_PATH)
-
-    for e in range(num_epochs):
-
-        # At the start of each epoch, randomly shuffle the chunk order
-        random.shuffle(feature_files)
-        random.shuffle(label_files)
-
-        model.train()
-
-        epoch_history = {
-            'loss': 0,
-            'preds': [],
-            'labels': [],
-        }
-
-        for i in range(0, len(feature_files)):
-            
-            # Start timer
-            print (f'Chunk {i}\n\tReading features and targets ...')
-            start = time.time()
-
-            df['X'] = np.load(feature_files[i], allow_pickle=True)[:READ_SIZE]
-            df['y'] = np.load(label_files[i])[:READ_SIZE]
+    df['X'] = np.load(FEATURES_PATH, allow_pickle=True)[:READ_SIZE]
+    df['y'] = np.load(LABELS_PATH)[:READ_SIZE]
 
 
-            # Splitting data
-            X_train, X_temp, y_train, y_temp = train_test_split(
-                df['X'],  df['y'], test_size=0.3, stratify=None, random_state=42)
-            
-            X_val, X_test, y_val, y_test = train_test_split(
-                X_temp, y_temp, test_size=0.66, stratify=None, random_state=42)
-            
+    # Splitting data
+    X_train, X_temp, y_train, y_temp = train_test_split(
+        df['X'],  df['y'], test_size=0.3, stratify=df['y'], random_state=42)
+    
+    X_val, X_test, y_val, y_test = train_test_split(
+        X_temp, y_temp, test_size=0.66, stratify=y_temp, random_state=42)
+    
 
-            # Convert to dataset (features are padded here)
-            train_dataset = YelpDataset(X_train, y_train, max_seq_len)
-            val_dataset = YelpDataset(X_val, y_val, max_seq_len)
-            test_dataset = YelpDataset(X_test, y_test, max_seq_len)
-        
-            # Convert to DataLoader
-            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-            val_loader = DataLoader(val_dataset, batch_size=batch_size)
-            test_loader = DataLoader(test_dataset, batch_size=batch_size)
+    # Convert to dataset (features are padded here)
+    train_dataset = YelpDataset(X_train, y_train, max_seq_len)
+    val_dataset = YelpDataset(X_val, y_val, max_seq_len)
+    test_dataset = YelpDataset(X_test, y_test, max_seq_len)
 
-            # Record time taken to load
-            end = time.time()
-            print (f'\t\tDone: {end-start:.2f}s')
+    # Convert to DataLoader
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size)
+       
 
-            print (f'\tTraining ...')
-            start = time.time()
 
-            _train_subroutine(
-                model, train_loader=train_loader, optimizer=optimizer, loss_fn=loss_fn, history=epoch_history)
-            
-            print (f'\n\tloss: {epoch_history["loss"]:.2f}')
+    # Record time taken to load
+    end = time.time()
+    print (f'Done: {end-start:.2f}s')
+
+    _train_subroutine(model, train_loader=train_loader, optimizer=optimizer, loss_fn=loss_fn, num_epochs=num_epochs)
 
 
 if __name__ == "__main__":
-    preprocess.generate_save_word_embeddings('./data/yelp_review_100k.csv')
+    main()
