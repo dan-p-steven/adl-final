@@ -15,35 +15,76 @@ import torch.optim as optim
 from sklearn.model_selection import train_test_split
 
 import time
+
 import optuna
+from functools import partial
 
 
 EMBED_SIZE = 300
 READ_SIZE = 70000
 
+MAX_SEQ_LEN = 100
+NUM_EPOCHS = 200
+
 FEATURES_PATH = './data/features.npy'
 LABELS_PATH = './data/labels.npy'
+
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+def fixed_objective(trial, train_dataset, val_dataset):
+
+    # Hyperparameters
+    batch_size = trial.suggest_int('batch_size', 16, 128, step=16)
+    learning_rate = trial.suggest_float('learning_rate', 1e-5, 10, log=True)
+    hidden_size = trial.suggest_int('hidden_size', 16, 128, step=16)
+    num_layers = trial.suggest_int('num_layers', 1, 3)
+    bidirectional = trial.suggest_categorical('bidirectional', [True, False])
+    dropout_rate = trial.suggest_float('dropout_rate', 1e-2, 1, log=True)
+
+    # Convert to DataLoader
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size)
+    #test_loader = DataLoader(test_dataset, batch_size=batch_size)
+
+    model = SentimentModel(
+        input_size=EMBED_SIZE,
+        hidden_size=hidden_size,
+        bidirectional=bidirectional,
+        num_layers=num_layers,
+        dropout_rate=dropout_rate,
+        num_classes=3
+    )
+
+    model = model.to(DEVICE)
+
+    #loss_fn = nn.CrossEntropyLoss(weight=class_weights)
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+
+
+    print (f'Training ...')
+    _, val_losses, _, _ = train_model(model, 
+                                                                 train_loader=train_loader, 
+                                                                 val_loader=val_loader, 
+                                                                 optimizer=optimizer, 
+                                                                 loss_fn=loss_fn, 
+                                                                 num_epochs=NUM_EPOCHS,device=DEVICE)
+    
+    # Getting val_losses at -1 will give you the best score
+    score = val_losses[-1] 
+
+    return score
 
 
 def main():
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Using device: {device}\n")
-
-
-    # Hyperparameters
     
-    batch_size = 32
-    learning_rate = 0.001
+    print(f"Using device: {DEVICE}\n")
 
-    # lstm_hidden_dim = 32
-    # lstm_num_layers = 1
-    # lstm_bidirectional = False
-    # lstm_dropout_rate = 0.5
 
-    max_seq_len = 100
-    num_epochs = 200
-
+    # Predefined Hyperparameters. These were chosen ahead of time due to computational
+    # limits.
 
 
 
@@ -62,50 +103,27 @@ def main():
     
     X_val, X_test, y_val, y_test = train_test_split(
         X_temp, y_temp, test_size=0.66, stratify=y_temp, random_state=42)
-        
-    
-    model = SentimentModel(
-        input_size=300,
-        hidden_size=128,
-        bidirectional=True,
-        num_layers=2,
-        num_classes=3
-    )
 
-    model = model.to(device)
-
-    #loss_fn = nn.CrossEntropyLoss(weight=class_weights)
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-
-    
     # Convert to dataset (features are padded here)
-    train_dataset = YelpDataset(X_train, y_train, max_seq_len)
-    val_dataset = YelpDataset(X_val, y_val, max_seq_len)
-    test_dataset = YelpDataset(X_test, y_test, max_seq_len)
-
-    # Convert to DataLoader
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size)
-       
+    train_dataset = YelpDataset(X_train, y_train, MAX_SEQ_LEN)
+    val_dataset = YelpDataset(X_val, y_val, MAX_SEQ_LEN)
+    #test_dataset = YelpDataset(X_test, y_test, MAX_SEQ_LEN)
 
 
     # Record time taken to load
     end = time.time()
     print (f'Done: {end-start:.2f}s')
 
-    print (f'Training ...')
-    train_losses, val_losses, train_accs, val_accs = train_model(model, 
-                                                                 train_loader=train_loader, 
-                                                                 val_loader=val_loader, 
-                                                                 optimizer=optimizer, 
-                                                                 loss_fn=loss_fn, 
-                                                                 num_epochs=num_epochs,device=device)
-    
-    # Getting val_losses at -1 will give you the best score
-    score = val_losses[-1] 
 
+
+    # Partial function with fixed parameters
+    wrapped_objective = partial(fixed_objective, train_dataset=train_dataset, val_dataset=val_dataset)     
+    
+    # Create the study and optimize
+    study = optuna.create_study(direction="minimize")
+    study.optimize(wrapped_objective, n_trials=2)
+
+    print ('best params: {study.best_params}')
 
 if __name__ == "__main__":
     main()

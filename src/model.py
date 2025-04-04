@@ -10,7 +10,7 @@ from sklearn.metrics import accuracy_score
 from src.early import EarlyStopping
 
 class SentimentModel(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers,  bidirectional, num_classes):
+    def __init__(self, input_size, hidden_size, num_layers,  bidirectional, num_classes, dropout_rate):
         
         super(SentimentModel, self).__init__()
 
@@ -18,7 +18,8 @@ class SentimentModel(nn.Module):
         self.hidden_size = hidden_size
         self.bidirectional = bidirectional
         
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, bidirectional=bidirectional, batch_first=True)    
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, bidirectional=bidirectional, batch_first=True)
+        self.dropout = nn.Dropout(dropout_rate)    
         self.fc = nn.Linear(hidden_size*2 if bidirectional else hidden_size, num_classes)
         self.softmax = nn.Softmax(dim=1)
     
@@ -32,6 +33,8 @@ class SentimentModel(nn.Module):
         # If lstm is bidirection, get the last two states concatenated.
         if self.bidirectional:
             out = torch.cat((h_n[-2], h_n[-1]), dim=1)
+        
+        out = self.dropout(out)
 
         out = self.fc(out)
         return out
