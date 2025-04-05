@@ -120,10 +120,12 @@ def main():
     wrapped_objective = partial(fixed_objective, train_dataset=train_dataset, val_dataset=val_dataset)     
     
     # Create the study and optimize
-    study = optuna.create_study(direction="minimize")
-    study.optimize(wrapped_objective, n_trials=2)
-
-    print ('best params: {study.best_params}')
+    study = optuna.create_study(study_name="sentiment_lstm_hpo",
+                                direction="minimize",
+                                storage="sqlite:///./models/sentiment_lstm_hpo.db",
+                                load_if_exists=True
+                                )
+    study.optimize(wrapped_objective, n_trials=10000)
 
 if __name__ == "__main__":
     main()
