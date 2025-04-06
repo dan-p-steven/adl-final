@@ -125,7 +125,7 @@ def main():
                                 storage="sqlite:///./models/sentiment_lstm_hpo.db",
                                 load_if_exists=True
                                 )
-    study.optimize(wrapped_objective, n_trials=10000)
+    study.optimize(wrapped_objective, n_trials=100)
 
 if __name__ == "__main__":
     main()
