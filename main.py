@@ -20,6 +20,8 @@ import optuna
 from functools import partial
 
 
+
+
 EMBED_SIZE = 300
 READ_SIZE = 70000
 
@@ -114,18 +116,71 @@ def main():
     end = time.time()
     print (f'Done: {end-start:.2f}s')
 
-
-
-    # Partial function with fixed parameters
-    wrapped_objective = partial(fixed_objective, train_dataset=train_dataset, val_dataset=val_dataset)     
+    study = optuna.load_study(study_name='sentiment_lstm_hpo',
+                              storage='sqlite:///./models/sentiment_lstm_hpo.db')
     
-    # Create the study and optimize
-    study = optuna.create_study(study_name="sentiment_lstm_hpo",
-                                direction="minimize",
-                                storage="sqlite:///./models/sentiment_lstm_hpo.db",
-                                load_if_exists=True
-                                )
-    study.optimize(wrapped_objective, n_trials=100)
+    train_losses, val_losses, train_accs, val_accs = train_best_params(study, train_dataset=train_dataset, val_dataset=val_dataset)
+    
+    
+
+
+
+
+    # # Partial function with fixed parameters
+    # wrapped_objective = partial(fixed_objective, train_dataset=train_dataset, val_dataset=val_dataset)     
+    
+    # # Create the study and optimize
+    # study = optuna.create_study(study_name="sentiment_lstm_hpo",
+    #                             direction="minimize",
+    #                             storage="sqlite:///./models/sentiment_lstm_hpo.db",
+    #                             load_if_exists=True
+    #                             )
+    # study.optimize(wrapped_objective, n_trials=100)
+
+
+def train_best_params(study: optuna.Study, train_dataset, val_dataset):
+    '''
+    Train a model using the best params and save its weights and biases.
+    '''
+
+    best = study.best_params
+
+    # Convert to DataLoader
+    train_loader = DataLoader(train_dataset, batch_size=best['batch_size'], shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=best['batch_size'])
+
+
+    model = SentimentModel(
+        input_size=EMBED_SIZE,
+        hidden_size=best['hidden_size'],
+        bidirectional=best['bidirectional'],
+        num_layers=best['num_layers'],
+        dropout_rate=best['dropout_rate'],
+        num_classes=3
+    )
+
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=best['learning_rate'])
+
+    model = model.to(DEVICE)
+
+    return train_model( model, 
+                        train_loader=train_loader, 
+                        val_loader=val_loader, 
+                        optimizer=optimizer, 
+                        loss_fn=loss_fn, 
+                        num_epochs=NUM_EPOCHS,
+                        device=DEVICE)
+
+
+
+
+
+
 
 if __name__ == "__main__":
-    main()
+    study = optuna.load_study(study_name='sentiment_lstm_hpo',
+                              storage='sqlite:///./models/sentiment_lstm_hpo.db')
+    
+    best_params = study.best_params
+    print (best_params)
