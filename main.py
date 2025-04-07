@@ -18,6 +18,8 @@ import time
 
 import optuna
 from functools import partial
+import plotly.graph_objects as go
+
 
 
 
@@ -47,7 +49,6 @@ def fixed_objective(trial, train_dataset, val_dataset):
     # Convert to DataLoader
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size)
-    #test_loader = DataLoader(test_dataset, batch_size=batch_size)
 
     model = SentimentModel(
         input_size=EMBED_SIZE,
@@ -60,43 +61,34 @@ def fixed_objective(trial, train_dataset, val_dataset):
 
     model = model.to(DEVICE)
 
-    #loss_fn = nn.CrossEntropyLoss(weight=class_weights)
+
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
 
     print (f'Training ...')
     _, val_losses, _, _ = train_model(model, 
-                                                                 train_loader=train_loader, 
-                                                                 val_loader=val_loader, 
-                                                                 optimizer=optimizer, 
-                                                                 loss_fn=loss_fn, 
-                                                                 num_epochs=NUM_EPOCHS,device=DEVICE)
+                                      train_loader=train_loader, 
+                                      val_loader=val_loader, 
+                                      optimizer=optimizer, 
+                                      loss_fn=loss_fn, 
+                                      num_epochs=NUM_EPOCHS,
+                                      device=DEVICE)
     
     # Getting val_losses at -1 will give you the best score
     score = val_losses[-1] 
-
     return score
 
-
-def main():
-
-    
-    print(f"Using device: {DEVICE}\n")
-
-
-    # Predefined Hyperparameters. These were chosen ahead of time due to computational
-    # limits.
-
-
+def load_split_data(features_path, labels_path):
 
     # Start timer
-    print (f'Reading features and targets ...')
+    print (f'Reading dataset...\n\tfeatures: {features_path}\n\tlabels: {labels_path}')
+
     start = time.time()
 
     df = pd.DataFrame()
-    df['X'] = np.load(FEATURES_PATH, allow_pickle=True)
-    df['y'] = np.load(LABELS_PATH)
+    df['X'] = np.load(features_path, allow_pickle=True)
+    df['y'] = np.load(labels_path)
 
 
     # Splitting data
@@ -109,33 +101,39 @@ def main():
     # Convert to dataset (features are padded here)
     train_dataset = YelpDataset(X_train, y_train, MAX_SEQ_LEN)
     val_dataset = YelpDataset(X_val, y_val, MAX_SEQ_LEN)
-    #test_dataset = YelpDataset(X_test, y_test, MAX_SEQ_LEN)
+    test_dataset = YelpDataset(X_test, y_test, MAX_SEQ_LEN)
 
 
     # Record time taken to load
     end = time.time()
     print (f'Done: {end-start:.2f}s')
 
-    study = optuna.load_study(study_name='sentiment_lstm_hpo',
-                              storage='sqlite:///./models/sentiment_lstm_hpo.db')
+    return train_dataset, val_dataset, test_dataset
+
+def hpo(study_name, direction, storage):
+
+    print(f"Using device: {DEVICE}\n")
+    train_dataset, val_dataset, test_dataset = load_split_data(FEATURES_PATH, LABELS_PATH)
+
+    # Partial function with fixed parameters
+    wrapped_objective = partial(fixed_objective, train_dataset=train_dataset, val_dataset=val_dataset)     
     
-    train_losses, val_losses, train_accs, val_accs = train_best_params(study, train_dataset=train_dataset, val_dataset=val_dataset)
+    # Create the study and optimize
+    study = optuna.create_study(study_name=study_name,
+                                direction=direction,
+                                storage=storage,
+                                load_if_exists=True
+                                )
     
-    
+    study.optimize(wrapped_objective, n_trials=100)
+
+
+def main():
+    pass
 
 
 
 
-    # # Partial function with fixed parameters
-    # wrapped_objective = partial(fixed_objective, train_dataset=train_dataset, val_dataset=val_dataset)     
-    
-    # # Create the study and optimize
-    # study = optuna.create_study(study_name="sentiment_lstm_hpo",
-    #                             direction="minimize",
-    #                             storage="sqlite:///./models/sentiment_lstm_hpo.db",
-    #                             load_if_exists=True
-    #                             )
-    # study.optimize(wrapped_objective, n_trials=100)
 
 
 def train_best_params(study: optuna.Study, train_dataset, val_dataset):
@@ -172,6 +170,42 @@ def train_best_params(study: optuna.Study, train_dataset, val_dataset):
                         num_epochs=NUM_EPOCHS,
                         device=DEVICE)
 
+def eval_best_params(study: optuna.Study, test_dataset):
+
+
+
+    # Get best params.
+    best = study.best_params
+
+    # Load test dataset into dataloader.
+    test_loader = DataLoader(test_dataset, batch_size=best['batch_size'])
+
+    # Instantiate model using best params.
+    model = SentimentModel(
+        input_size=EMBED_SIZE,
+        hidden_size=best['hidden_size'],
+        bidirectional=best['bidirectional'],
+        num_layers=best['num_layers'],
+        dropout_rate=best['dropout_rate'],
+        num_classes=3,
+    )
+
+    # Put model on GPU
+    model = model.to(DEVICE)
+
+    # Load best model weights and biases.
+    model.load_state_dict(torch.load('./models/best_model.pth'))
+
+    loss_fn = nn.CrossEntropyLoss()
+
+    # Evaluate test dataset
+    y_pred, y_actual, _ = evaluate_model(model, test_loader, loss_fn, DEVICE)
+
+    # Save y pred and y actual
+    np.save('./models/y_pred.npy', np.array(y_pred))
+    np.save('./models/y_actual.npy', np.array(y_actual))
+
+
 
 
 
@@ -179,8 +213,23 @@ def train_best_params(study: optuna.Study, train_dataset, val_dataset):
 
 
 if __name__ == "__main__":
-    study = optuna.load_study(study_name='sentiment_lstm_hpo',
-                              storage='sqlite:///./models/sentiment_lstm_hpo.db')
+
+    print(f"Using device: {DEVICE}\n")
     
-    best_params = study.best_params
-    print (best_params)
+
+
+    # Optuna variables
+    study_name="sentiment_lstm_hpo"
+    direction="minimize"
+    storage="sqlite:///./models/sentiment_lstm_hpo.db"
+
+    # Load the optuna study
+    study = optuna.load_study(study_name=study_name, storage=storage)
+
+    _, _, test_dataset = load_split_data(FEATURES_PATH, LABELS_PATH)
+
+    eval_best_params(study, test_dataset)
+
+    # hpo(study_name, direction, storage)
+
+    

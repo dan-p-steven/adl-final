@@ -71,7 +71,7 @@ def evaluate_model(model, data_loader, loss_fn, device):
 
 def train_model(model, train_loader, val_loader, optimizer, loss_fn, num_epochs, device):
 
-    early_stopping = EarlyStopping(patience=5, verbose=True)
+    early_stopping = EarlyStopping(patience=20, verbose=True)
 
     train_losses = []
     val_losses = []
