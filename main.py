@@ -136,7 +136,7 @@ def main():
 
 
 
-def train_best_params(study: optuna.Study, train_dataset, val_dataset):
+def final_model_train(study: optuna.Study, train_dataset, val_dataset):
     '''
     Train a model using the best params and save its weights and biases.
     '''
@@ -170,16 +170,11 @@ def train_best_params(study: optuna.Study, train_dataset, val_dataset):
                         num_epochs=NUM_EPOCHS,
                         device=DEVICE)
 
-def eval_best_params(study: optuna.Study, test_dataset):
-
-
+def load_model_from_study(study: optuna.Study):
 
     # Get best params.
     best = study.best_params
-
-    # Load test dataset into dataloader.
-    test_loader = DataLoader(test_dataset, batch_size=best['batch_size'])
-
+    
     # Instantiate model using best params.
     model = SentimentModel(
         input_size=EMBED_SIZE,
@@ -196,6 +191,15 @@ def eval_best_params(study: optuna.Study, test_dataset):
     # Load best model weights and biases.
     model.load_state_dict(torch.load('./models/best_model.pth'))
 
+    return model
+
+
+def final_model_test(study: optuna.Study, test_dataset):
+
+    model = load_model_from_study(study)
+
+    test_loader = DataLoader(test_dataset, batch_size=study.best_params['batch_size'])
+
     loss_fn = nn.CrossEntropyLoss()
 
     # Evaluate test dataset
@@ -206,10 +210,47 @@ def eval_best_params(study: optuna.Study, test_dataset):
     np.save('./models/y_actual.npy', np.array(y_actual))
 
 
+def evaluate_sentences(model, sentences, nlp):
+
+    disable = ['ner', 'parser', 'attribute_ruler', 'lemmatizer', 'tagger']
+    batch_size = 10
+
+    # List to store tokenized vectors.
+    tokenized_vectors = []
+
+    # Tokenize sentences.
+    for doc in nlp.pipe(sentences, batch_size=batch_size, disable=disable, n_process=1):
+
+        # Record the tokens that have a vector.
+        s = []
+        for token in doc:
+            if token.has_vector:
+                s.append(token.vector)
+
+        # Append the vectorized sample.
+        tokenized_vectors.append(s)
+
+    df = pd.DataFrame()
+    df['input'] = tokenized_vectors
+    df['input'] = df['input'].apply(lambda v: np.vstack(v))
+    df['dummy'] = np.zeros((len(sentences,)))
+
+    input_dataset = YelpDataset(df['input'], df['dummy'], MAX_SEQ_LEN)
+    #evaluate_model(model, data_loader=input_dataloader, 
 
 
+def sequence_length_impact(study):
 
+    # Read in an unseen dataset. 
+    model = load_model_from_study(study)
 
+    df = pd.read_csv('./data/yelp_review_100k.csv', skiprows=range(1, READ_SIZE+1))
+    print (df.columns)
+    df['length'] = df['text'].apply(lambda x: len(x.split()))
+    
+    print (df['length'].value_counts())
+    
+    
 
 
 if __name__ == "__main__":
@@ -226,10 +267,6 @@ if __name__ == "__main__":
     # Load the optuna study
     study = optuna.load_study(study_name=study_name, storage=storage)
 
-    _, _, test_dataset = load_split_data(FEATURES_PATH, LABELS_PATH)
-
-    eval_best_params(study, test_dataset)
-
-    # hpo(study_name, direction, storage)
-
+    sequence_length_impact(study)
+    
     
