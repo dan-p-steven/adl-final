@@ -189,7 +189,7 @@ def load_model_from_study(study: optuna.Study):
     model = model.to(DEVICE)
 
     # Load best model weights and biases.
-    model.load_state_dict(torch.load('./models/best_model.pth'))
+    model.load_state_dict(torch.load('./models/best_model.pt', map_location=torch.device('cpu')))
 
     return model
 
@@ -267,6 +267,5 @@ if __name__ == "__main__":
     # Load the optuna study
     study = optuna.load_study(study_name=study_name, storage=storage)
 
-    sequence_length_impact(study)
-    
-    
+    #sequence_length_impact(study)
+    print(f'{study.best_params}')
